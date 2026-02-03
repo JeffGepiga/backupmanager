@@ -45,12 +45,12 @@ class BackupManager
 
         $filesData = [];
         foreach ($files as $index => $file) {
-             if ($file instanceof \League\Flysystem\FileAttributes) {
+            if ($file instanceof \League\Flysystem\FileAttributes) {
                 if (!empty($file->path())) {
                     $name = $file->path();
-                    $name = substr(str_replace(config('backupmanager.backups.backup_path'), '', $file->path()),1);
-                }else{
-                    $name = $file->extraMetadata()['filename'].".".$file->extraMetadata()['extension'];
+                    $name = substr(str_replace(config('backupmanager.backups.backup_path'), '', $file->path()), 1);
+                } else {
+                    $name = $file->extraMetadata()['filename'] . "." . $file->extraMetadata()['extension'];
                 }
                 $array = explode('_', $name);
                 $filesData[] = [
@@ -60,7 +60,7 @@ class BackupManager
                     'type' => $array[0] === 'd' ? 'Database' : 'Files',
                     'date' => date('M d Y', $this->getFileTimeStamp($file))
                 ];
-            }else{
+            } else {
                 $filesData[] = [
                     'name' => $file['basename'],
                     'size_raw' => $file['size'],
@@ -136,9 +136,9 @@ class BackupManager
     /**
      * Backup files
      */
-    public function backupFiles($bypass=false)
+    public function backupFiles($bypass = false)
     {
-        if (config('backupmanager.backups.files.enable') || $bypass===true) {
+        if (config('backupmanager.backups.files.enable') || $bypass === true) {
 
             // delete previous backup for same date
             if (Storage::disk($this->disk)->exists($this->backupPath . $this->fBackupName)) {
@@ -158,7 +158,14 @@ class BackupManager
                         $pathPrefix = getcwd();
                     }
 
-                    return str_replace(array($pathPrefix, '/', '\\'), '', $str);
+                    // Remove the base path prefix and normalize directory separators
+                    $relativePath = str_replace($pathPrefix, '', $str);
+                    // Remove leading directory separator
+                    $relativePath = ltrim($relativePath, DIRECTORY_SEPARATOR);
+                    // Convert backslashes to forward slashes for consistency
+                    $relativePath = str_replace('\\', '/', $relativePath);
+
+                    return $relativePath;
                 },
                 $itemsToBackup
             );
@@ -168,8 +175,11 @@ class BackupManager
 
             $itemsToBackup = implode(' ', $itemsToBackup);
 
-            $command = 'cd ' . str_replace('\\', '/',
-                    base_path()) . " && $this->tar -cpzf $this->fBackupName $itemsToBackup";
+            $command = 'cd ' . str_replace(
+                '\\',
+                '/',
+                base_path()
+            ) . " && $this->tar -cpzf $this->fBackupName $itemsToBackup";
             //exit($command);
 
             shell_exec($command . ' 2>&1');
@@ -183,7 +193,7 @@ class BackupManager
                 // delete local file
                 $storageLocal->delete($this->fBackupName);
             }
-            if ($bypass===true) {
+            if ($bypass === true) {
                 $this->deleteOldBackups("f");
             }
         }
@@ -192,7 +202,7 @@ class BackupManager
     /**
      * Backup Database
      */
-    public function backupDatabase($bypass=false)
+    public function backupDatabase($bypass = false)
     {
         if (config('backupmanager.backups.database.enable') || $bypass) {
 
@@ -236,8 +246,11 @@ class BackupManager
                 $tableOptions = implode(' ', $itemsToBackup);
             }
 
-            $command = 'cd ' . str_replace('\\', '/',
-                    base_path()) . " && $this->mysqldump $options $connectionOptions $tableOptions | gzip > $this->dBackupName";
+            $command = 'cd ' . str_replace(
+                '\\',
+                '/',
+                base_path()
+            ) . " && $this->mysqldump $options $connectionOptions $tableOptions | gzip > $this->dBackupName";
             //exit($command);
 
             shell_exec($command . ' 2>&1');
@@ -252,7 +265,7 @@ class BackupManager
                 $storageLocal->delete($this->dBackupName);
             }
 
-            if ($bypass===true) {
+            if ($bypass === true) {
                 $this->deleteOldBackups("d");
             }
         }
@@ -312,8 +325,11 @@ class BackupManager
                 $connectionOptions .= " -h {$connection['host']} {$connection['database']} ";
 
                 //$command = "$cd gunzip < $this->fBackupName | mysql $connectionOptions";
-                $command = 'cd ' . str_replace('\\', '/',
-                        base_path()) . " && $this->zcat $file | mysql $connectionOptions";
+                $command = 'cd ' . str_replace(
+                    '\\',
+                    '/',
+                    base_path()
+                ) . " && $this->zcat $file | mysql $connectionOptions";
                 //exit($command);
 
                 shell_exec($command . ' 2>&1');
@@ -377,9 +393,9 @@ class BackupManager
      *
      * @return void
      */
-    protected function deleteOldBackups($del_specific="")
+    protected function deleteOldBackups($del_specific = "")
     {
-        $daysOldToDelete = (int)config('backupmanager.backups.delete_old_backup_days');
+        $daysOldToDelete = (int) config('backupmanager.backups.delete_old_backup_days');
         $now = time();
 
         $files = Storage::disk($this->disk)->listContents($this->backupPath);
@@ -389,15 +405,15 @@ class BackupManager
             }
             if (empty($file['basename'])) {
                 $filename = $file->path();
-            }else{
+            } else {
                 $filename = $this->backupPath . $file['basename'];
             }
-            if ($del_specific!=="") {
+            if ($del_specific !== "") {
                 //skip delete if del_specific has value for specific deletes only
                 if (!empty($file['basename'][0]) && $file['basename'][0] !== $del_specific) {
                     continue;
                 }
-                if (!empty($file->extraMetadata()['filename'][0]) && $file->extraMetadata()['filename'][0].".".$file->extraMetadata()['extension'][0] !== $del_specific) {
+                if (!empty($file->extraMetadata()['filename'][0]) && $file->extraMetadata()['filename'][0] . "." . $file->extraMetadata()['extension'][0] !== $del_specific) {
                     continue;
                 }
             }
